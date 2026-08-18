@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transit"
+version = "0.1.0"
+description = "Learned spatiotemporal plausibility gating for cross-camera person re-identification"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Albin", email = "albinmathew2004@gmail.com" }]
+
+dependencies = [
+    "ultralytics>=8.3.0",
+    "torch>=2.1.0",
+    "torchvision>=0.16.0",
+    "opencv-python>=4.9.0",
+    "numpy>=1.26.0",
+    "pandas>=2.1.0",
+    "pyyaml>=6.0.1",
+    "tqdm>=4.66.0",
+    "pytest>=8.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0", "pytest-cov>=5.0.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,26 @@
+# Default configuration for Transit detection + tracking stage.
+# Override any of these via a scene-specific YAML file or CLI flags in scripts/.
+
+# Root directory containing downloaded scene data (e.g. NVIDIA PhysicalAI-SmartSpaces /
+# MTMC_Tracking_2025 layout: <dataset_root>/<scene_name>/<camera_id>/...).
+dataset_root: "data/raw"
+
+# Name of the scene (subdirectory of dataset_root) to process.
+scene_name: "scene_001"
+
+# Directory where detection/tracking outputs (tracklets, logs) are written.
+output_dir: "outputs"
+
+# Ultralytics detector checkpoint. Leave as null to auto-detect: config.py defaults
+# to "yolo11x.pt" but upgrades to "yolo26x.pt" automatically if that checkpoint is
+# available in the installed ultralytics version. Set explicitly to override.
+detector_model: null
+
+# Minimum detection confidence to keep a "person" detection.
+detection_conf_threshold: 0.4
+
+# Ultralytics tracker config name, resolved by the ultralytics package at runtime.
+tracker_config: "bytetrack.yaml"
+
+# "cuda", "cpu", or "auto" to auto-detect based on torch.cuda.is_available().
+device: "auto"
