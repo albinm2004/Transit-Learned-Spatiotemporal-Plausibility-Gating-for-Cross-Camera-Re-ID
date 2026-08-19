@@ -25,24 +25,16 @@ logger = logging.getLogger(__name__)
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments for the detect+track script."""
     parser = argparse.ArgumentParser(description="Run detection + tracking on every camera in a scene.")
+    parser.add_argument("--config", type=str, default="configs/default.yaml", help="Path to a TransitConfig YAML file.")
+    parser.add_argument("--scene", type=str, default=None, help="Scene name to process (overrides config).")
     parser.add_argument(
-        "--config",
-        type=str,
-        default="configs/default.yaml",
-        help="Path to a TransitConfig YAML file.",
-    )
-    parser.add_argument(
-        "--scene",
+        "--weights",
         type=str,
         default=None,
-        help="Scene name to process (overrides scene_name in the config file).",
+        help="Optional detector checkpoint override, e.g. a fine-tuned weights path from train_yolo.py.",
     )
     parser.add_argument(
-        "--format",
-        type=str,
-        choices=["parquet", "json"],
-        default="parquet",
-        help="Output file format for per-camera tracklets.",
+        "--format", type=str, choices=["parquet", "json"], default="parquet", help="Output file format."
     )
     return parser.parse_args()
 
@@ -107,7 +99,9 @@ def save_tracklets(tracker: CameraTracker, output_path: Path, fmt: str) -> None:
     else:
         df.to_json(output_path.with_suffix(".json"), orient="records")
 
-    logger.info("Saved %d detections across %d tracklet(s) to %s", len(rows), len(tracker.get_tracklets()), output_path)
+    logger.info(
+        "Saved %d detections across %d tracklet(s) to %s", len(rows), len(tracker.get_tracklets()), output_path
+    )
 
 
 def main() -> None:
@@ -126,7 +120,7 @@ def main() -> None:
 
     for camera_id in camera_ids:
         logger.info("Processing camera '%s'", camera_id)
-        tracker = CameraTracker(config, camera_id)
+        tracker = CameraTracker(config, camera_id, weights_path=args.weights)
         video_path = scene.video_path(camera_id)
         track_camera(tracker, video_path)
 

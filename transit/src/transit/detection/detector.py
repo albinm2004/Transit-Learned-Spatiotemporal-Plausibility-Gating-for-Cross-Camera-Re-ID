@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import numpy as np
 
@@ -19,20 +20,27 @@ class PersonDetector:
 
     Attributes:
         config: The TransitConfig this detector was built from.
+        weights_path: The checkpoint actually loaded (stock or fine-tuned).
     """
 
-    def __init__(self, config: TransitConfig) -> None:
+    def __init__(self, config: TransitConfig, weights_path: str | Path | None = None) -> None:
         """Load a YOLO model according to the given config.
 
         Args:
-            config: TransitConfig specifying the detector checkpoint, confidence
-                threshold, and device to run on.
+            config: TransitConfig specifying the default detector checkpoint,
+                confidence threshold, and device to run on.
+            weights_path: Optional override for the checkpoint to load, e.g. a
+                fine-tuned checkpoint produced by detection/train.py
+                (``<training.output_dir>/weights/best.pt``). Defaults to
+                ``config.detector_model`` (the stock pretrained checkpoint) if
+                not given.
         """
         from ultralytics import YOLO
 
         self.config = config
-        logger.info("Loading detector model '%s' on device '%s'", config.detector_model, config.device)
-        self._model = YOLO(config.detector_model)
+        self.weights_path = str(weights_path) if weights_path is not None else config.detector_model
+        logger.info("Loading detector model '%s' on device '%s'", self.weights_path, config.device)
+        self._model = YOLO(self.weights_path)
 
     def detect(
         self,

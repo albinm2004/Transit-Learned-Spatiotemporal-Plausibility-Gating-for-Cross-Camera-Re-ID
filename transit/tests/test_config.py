@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from transit.config import TransitConfig, load_config
+from transit.config import TrainingConfig, TransitConfig, load_config
 
 CONFIG_PATH = Path(__file__).resolve().parents[1] / "configs" / "default.yaml"
 
@@ -21,6 +21,10 @@ def test_load_config_from_yaml() -> None:
     assert 0.0 <= config.detection_conf_threshold <= 1.0
     assert config.tracker_config
     assert config.device in {"cuda", "cpu"}
+    assert config.reid_model_name
+    assert config.gate_model_type in {"logistic", "mlp"}
+    assert isinstance(config.training, TrainingConfig)
+    assert config.training.epochs > 0
 
 
 def test_load_config_with_overrides() -> None:
@@ -40,3 +44,45 @@ def test_scene_dir_property() -> None:
     )
 
     assert config.scene_dir == Path("data/raw") / "scene_001"
+
+
+def test_resolved_base_checkpoint_falls_back_to_detector_model() -> None:
+    """resolved_base_checkpoint() should use detector_model when training.base_checkpoint is unset."""
+    config = TransitConfig(
+        dataset_root="data/raw",
+        scene_name="scene_001",
+        output_dir="outputs",
+        detector_model="yolo11x.pt",
+        device="cpu",
+    )
+
+    assert config.resolved_base_checkpoint() == "yolo11x.pt"
+
+
+def test_resolved_base_checkpoint_prefers_explicit_training_checkpoint() -> None:
+    """resolved_base_checkpoint() should prefer an explicit training.base_checkpoint."""
+    config = TransitConfig(
+        dataset_root="data/raw",
+        scene_name="scene_001",
+        output_dir="outputs",
+        detector_model="yolo11x.pt",
+        device="cpu",
+        training=TrainingConfig(base_checkpoint="yolo11n.pt"),
+    )
+
+    assert config.resolved_base_checkpoint() == "yolo11n.pt"
+
+
+def test_invalid_gate_model_type_raises() -> None:
+    """An unrecognized gate_model_type should raise ValueError."""
+    try:
+        TransitConfig(
+            dataset_root="data/raw",
+            scene_name="scene_001",
+            output_dir="outputs",
+            device="cpu",
+            gate_model_type="not_a_real_model",
+        )
+        assert False, "Expected ValueError"
+    except ValueError:
+        pass

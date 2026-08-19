@@ -15,9 +15,16 @@ dependencies = [
     "ultralytics>=8.3.0",
     "torch>=2.1.0",
     "torchvision>=0.16.0",
+    # torchreid (deep-person-reid) provides the pretrained OSNet feature extractor
+    # used by reid/embedder.py. It is not consistently published to PyPI across
+    # versions; if `pip install torchreid` fails, install from source instead:
+    #   pip install git+https://github.com/KaiyangZhou/deep-person-reid.git
+    "torchreid>=0.2.5",
     "opencv-python>=4.9.0",
     "numpy>=1.26.0",
     "pandas>=2.1.0",
+    "scipy>=1.11.0",
+    "scikit-learn>=1.4.0",
     "pyyaml>=6.0.1",
     "tqdm>=4.66.0",
     "pytest>=8.0.0",

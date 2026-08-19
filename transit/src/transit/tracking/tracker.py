@@ -1,4 +1,4 @@
-"""Per-camera person tracking built on Ultralytics' built-in tracking.
+"""Per-camera person tracking built on Ultralytics' built-in ByteTrack tracking.
 
 Ultralytics keeps tracker state (e.g. ByteTrack's track buffer) attached to the
 YOLO model instance across calls when ``persist=True``. To keep camera tracks from
@@ -9,6 +9,7 @@ than sharing one across cameras.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import numpy as np
 
@@ -26,27 +27,37 @@ class CameraTracker:
     Attributes:
         config: The TransitConfig this tracker was built from.
         camera_id: Identifier of the camera this tracker is responsible for.
+        weights_path: The checkpoint actually loaded (stock or fine-tuned).
     """
 
-    def __init__(self, config: TransitConfig, camera_id: str) -> None:
+    def __init__(
+        self,
+        config: TransitConfig,
+        camera_id: str,
+        weights_path: str | Path | None = None,
+    ) -> None:
         """Load a dedicated YOLO model for tracking on one camera.
 
         Args:
-            config: TransitConfig specifying the detector checkpoint, tracker
-                config, confidence threshold, and device to run on.
+            config: TransitConfig specifying the default detector checkpoint,
+                tracker config, confidence threshold, and device to run on.
             camera_id: Identifier of the camera this tracker will process.
+            weights_path: Optional override for the checkpoint to load, e.g. a
+                fine-tuned checkpoint from detection/train.py. Defaults to
+                ``config.detector_model`` if not given.
         """
         from ultralytics import YOLO
 
         self.config = config
         self.camera_id = camera_id
+        self.weights_path = str(weights_path) if weights_path is not None else config.detector_model
         logger.info(
             "Initializing tracker for camera '%s' with model '%s' and tracker '%s'",
             camera_id,
-            config.detector_model,
+            self.weights_path,
             config.tracker_config,
         )
-        self._model = YOLO(config.detector_model)
+        self._model = YOLO(self.weights_path)
         self._tracklets: dict[int, Tracklet] = {}
 
     def update(self, frame: np.ndarray, frame_idx: int, timestamp: float) -> list[Detection]:

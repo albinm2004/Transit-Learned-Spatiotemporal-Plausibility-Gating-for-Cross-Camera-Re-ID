@@ -5,9 +5,11 @@ __pycache__/
 .venv/
 venv/
 
-# Downloaded YOLO checkpoints
+# Downloaded / fine-tuned YOLO checkpoints and other model weights
 *.pt
+*.pth
 
-# Data and outputs (never commit raw scene data or pipeline outputs)
+# Data, exported YOLO datasets, and pipeline outputs
 data/
 outputs/
+datasets/

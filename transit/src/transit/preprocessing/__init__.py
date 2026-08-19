@@ -1,1 +1,1 @@
-"""Shared preprocessing utilities. Not yet implemented."""
+"""Data preprocessing: visibility intervals, transition events, and camera-pair tiers."""
