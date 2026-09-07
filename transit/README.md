@@ -40,6 +40,20 @@ Expected scene layout (see [src/transit/data/mtmc_dataset.py](src/transit/data/m
 <dataset_root>/<scene_name>/<camera_id>/ground_truth.json   # filename TBD, see NOTES_FOR_TOMORROW.md
 ```
 
+## Quick sanity check (no dataset needed)
+
+To confirm the detector/tracker work on real footage before touching the MTMC
+dataset -- e.g. on a downloaded YouTube CCTV clip -- run:
+
+```bash
+python scripts/smoke_test_video.py --video path/to/clip.mp4
+```
+
+This writes `<clip>_annotated.mp4` with boxes and persistent track IDs. It's a
+smoke test only: a single video has no cross-camera ground truth, so it can't
+validate Re-ID matching or the plausibility gate -- see `--help` for options
+(`--detect-only`, `--weights` for a fine-tuned checkpoint, `--max-frames`, `--stride`).
+
 ## Status
 
 ### Fully implemented and runnable
