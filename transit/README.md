@@ -49,6 +49,14 @@ dataset -- e.g. on a downloaded YouTube CCTV clip -- run:
 python scripts/smoke_test_video.py --video path/to/clip.mp4
 ```
 
+A ready-to-use sample clip is committed at
+[samples/yolo11x_smoke_test_cctv_footage.mp4](samples/yolo11x_smoke_test_cctv_footage.mp4)
+(~30 MB CCTV footage), so you can run this immediately with no setup:
+
+```bash
+python scripts/smoke_test_video.py --video samples/yolo11x_smoke_test_cctv_footage.mp4
+```
+
 This writes `<clip>_annotated.mp4` with boxes and persistent track IDs. It's a
 smoke test only: a single video has no cross-camera ground truth, so it can't
 validate Re-ID matching or the plausibility gate -- see `--help` for options
