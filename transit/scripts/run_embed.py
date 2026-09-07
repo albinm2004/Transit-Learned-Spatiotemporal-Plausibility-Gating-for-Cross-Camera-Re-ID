@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -50,25 +51,73 @@ def _sample_rows(group: pd.DataFrame, max_crops: int) -> pd.DataFrame:
     return group.iloc[indices]
 
 
-def _crop_detections(video_path, rows: pd.DataFrame) -> list[np.ndarray]:
-    """Extract pixel crops for a set of detection rows from a video file."""
+def _crop_all_tracklets(video_path, sampled_by_track: dict[int, pd.DataFrame]) -> dict[int, list[np.ndarray]]:
+    """Extract pixel crops for every sampled row across all tracklets in one video pass.
+
+    Seeking per-detection via `cv2.CAP_PROP_POS_FRAMES` (as an earlier version of
+    this function did, once per tracklet) is unreliable on compressed/long-GOP
+    video -- a seek can land on the nearest keyframe rather than the exact frame
+    requested, silently producing the wrong crop -- and it reopens the video file
+    once per tracklet, which is also slow. Instead this makes a single forward
+    (`cap.read()`) pass over the video and crops every wanted detection, from any
+    tracklet, as its frame is reached -- the same reliable pattern already used by
+    `detection/dataset_export.py`'s `_export_camera_frames`.
+
+    Args:
+        video_path: Path to the camera's source video.
+        sampled_by_track: track_id -> DataFrame of sampled detection rows to crop
+            (as produced by `_sample_rows`).
+
+    Returns:
+        track_id -> list of pixel crops, in the same row order as the input
+        DataFrame for that track. Tracks with no successfully-read crop map to
+        an empty list.
+    """
+    # frame_idx -> list of (track_id, row_position, xmin, ymin, xmax, ymax) wanted from that frame.
+    wanted: dict[int, list[tuple[int, int, int, int, int, int]]] = {}
+    for track_id, rows in sampled_by_track.items():
+        for row_position, (_, row) in enumerate(rows.iterrows()):
+            frame_idx = int(row["frame_idx"])
+            xmin, ymin, xmax, ymax = (int(row[c]) for c in ("xmin", "ymin", "xmax", "ymax"))
+            wanted.setdefault(frame_idx, []).append((track_id, row_position, xmin, ymin, xmax, ymax))
+
+    crops_by_track: dict[int, dict[int, np.ndarray]] = {track_id: {} for track_id in sampled_by_track}
+    if not wanted:
+        return {track_id: [] for track_id in sampled_by_track}
+
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video file: {video_path}")
 
-    crops = []
-    for _, row in rows.iterrows():
-        cap.set(cv2.CAP_PROP_POS_FRAMES, int(row["frame_idx"]))
-        ok, frame = cap.read()
-        if not ok:
-            continue
-        xmin, ymin, xmax, ymax = (int(row[c]) for c in ("xmin", "ymin", "xmax", "ymax"))
-        crop = frame[max(0, ymin) : max(0, ymax), max(0, xmin) : max(0, xmax)]
-        if crop.size > 0:
-            crops.append(crop)
-
+    remaining = dict(wanted)
+    frame_idx = 0
+    with tqdm(total=len(wanted), desc=f"Cropping {Path(video_path).name}", unit="frame") as pbar:
+        while remaining:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            if frame_idx in remaining:
+                for track_id, row_position, xmin, ymin, xmax, ymax in remaining[frame_idx]:
+                    crop = frame[max(0, ymin) : max(0, ymax), max(0, xmin) : max(0, xmax)]
+                    if crop.size > 0:
+                        crops_by_track[track_id][row_position] = crop
+                del remaining[frame_idx]
+                pbar.update(1)
+            frame_idx += 1
     cap.release()
-    return crops
+
+    if remaining:
+        logger.warning(
+            "%d wanted frame(s) were never reached in %s (video shorter than tracklets?): %s",
+            len(remaining),
+            video_path,
+            sorted(remaining),
+        )
+
+    return {
+        track_id: [crops_by_track[track_id][pos] for pos in sorted(crops_by_track[track_id])]
+        for track_id in sampled_by_track
+    }
 
 
 def main() -> None:
@@ -91,17 +140,19 @@ def main() -> None:
         detections_df = pd.read_parquet(tracklets_path)
         video_path = scene.video_path(camera_id)
 
+        sampled_by_track: dict[int, pd.DataFrame] = {
+            int(track_id): _sample_rows(group, args.max_crops_per_tracklet)
+            for track_id, group in detections_df.groupby("track_id")
+        }
+        crops_by_track = _crop_all_tracklets(video_path, sampled_by_track)
+
         track_ids: list[int] = []
         embeddings: list[np.ndarray] = []
-
-        for track_id, group in tqdm(detections_df.groupby("track_id"), desc=f"Embedding {camera_id}"):
-            sampled = _sample_rows(group, args.max_crops_per_tracklet)
-            crops = _crop_detections(video_path, sampled)
+        for track_id, crops in tqdm(crops_by_track.items(), desc=f"Embedding {camera_id}"):
             if not crops:
                 continue
-
             per_crop_embeddings = embedder.embed(crops)
-            track_ids.append(int(track_id))
+            track_ids.append(track_id)
             embeddings.append(embedder.aggregate(per_crop_embeddings))
 
         output_path = config.output_dir / config.scene_name / camera_id / "embeddings.npz"

@@ -185,6 +185,53 @@ def train_val_split(items: list, train_ratio: float, seed: int = _SPLIT_SEED) ->
     return shuffled[:split_idx], shuffled[split_idx:]
 
 
+def chronological_split_by_camera(
+    items: list[tuple[str, int]], train_ratio: float
+) -> tuple[list[tuple[str, int]], list[tuple[str, int]]]:
+    """Split (camera_id, frame_idx) items into train/val, chronologically per camera.
+
+    Unlike `train_val_split`, this does NOT shuffle. For each camera, its sampled
+    frame indices are sorted ascending and the earliest `train_ratio` fraction
+    becomes train, the remainder becomes val. This guarantees every train frame
+    for a camera precedes every val frame for that camera in time.
+
+    This matters because a random shuffle-and-split (as `train_val_split` does)
+    can place near-duplicate, temporally-adjacent frames from the same camera on
+    opposite sides of the train/val boundary. Consecutive frames of the same
+    person barely differ, so the detector effectively "sees" val examples during
+    training -- inflating validation accuracy without a real generalisation gain.
+    A per-camera chronological split avoids that leakage; this is the split
+    `export_yolo_dataset` actually uses.
+
+    Args:
+        items: (camera_id, frame_idx) pairs, e.g. the output of sampling frames
+            per camera in `export_yolo_dataset`.
+        train_ratio: Fraction of each camera's frames assigned to train.
+
+    Returns:
+        (train_items, val_items).
+
+    Raises:
+        ValueError: If train_ratio is not in (0, 1).
+    """
+    if not 0.0 < train_ratio < 1.0:
+        raise ValueError(f"train_ratio must be in (0, 1), got {train_ratio}")
+
+    frames_by_camera: dict[str, list[int]] = {}
+    for camera_id, frame_idx in items:
+        frames_by_camera.setdefault(camera_id, []).append(frame_idx)
+
+    train_items: list[tuple[str, int]] = []
+    val_items: list[tuple[str, int]] = []
+    for camera_id, frame_indices in frames_by_camera.items():
+        ordered = sorted(frame_indices)
+        split_idx = round(len(ordered) * train_ratio)
+        train_items.extend((camera_id, frame_idx) for frame_idx in ordered[:split_idx])
+        val_items.extend((camera_id, frame_idx) for frame_idx in ordered[split_idx:])
+
+    return train_items, val_items
+
+
 def export_yolo_dataset(config: TransitConfig) -> Path:
     """Export the configured scene's ground truth into a YOLO training dataset.
 
@@ -218,7 +265,7 @@ def export_yolo_dataset(config: TransitConfig) -> Path:
         sampled_frames = sample_frame_indices(list(annotations.keys()), config.training.frame_sample_stride)
         all_items.extend((camera_id, frame_idx) for frame_idx in sampled_frames)
 
-    train_items, val_items = train_val_split(all_items, config.training.train_val_split)
+    train_items, val_items = chronological_split_by_camera(all_items, config.training.train_val_split)
     split_of: dict[tuple[str, int], str] = {}
     split_of.update({item: "train" for item in train_items})
     split_of.update({item: "val" for item in val_items})

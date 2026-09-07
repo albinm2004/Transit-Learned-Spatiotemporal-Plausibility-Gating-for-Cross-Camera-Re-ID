@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from transit.detection.dataset_export import (
     bbox_to_yolo_label,
+    chronological_split_by_camera,
     sample_frame_indices,
     train_val_split,
 )
@@ -110,6 +111,51 @@ def test_train_val_split_rejects_invalid_ratio() -> None:
     """A train_ratio outside (0, 1) should raise ValueError."""
     try:
         train_val_split([1, 2, 3], train_ratio=1.5)
+        assert False, "Expected ValueError"
+    except ValueError:
+        pass
+
+
+def test_chronological_split_by_camera_respects_ratio_per_camera() -> None:
+    """Each camera's frames should be split independently, in time order."""
+    items = [("cam1", i) for i in range(10)] + [("cam2", i) for i in range(20)]
+    train_items, val_items = chronological_split_by_camera(items, train_ratio=0.8)
+
+    cam1_train = sorted(f for c, f in train_items if c == "cam1")
+    cam1_val = sorted(f for c, f in val_items if c == "cam1")
+    cam2_train = sorted(f for c, f in train_items if c == "cam2")
+    cam2_val = sorted(f for c, f in val_items if c == "cam2")
+
+    assert cam1_train == list(range(8))
+    assert cam1_val == list(range(8, 10))
+    assert cam2_train == list(range(16))
+    assert cam2_val == list(range(16, 20))
+
+
+def test_chronological_split_by_camera_is_disjoint_and_complete() -> None:
+    """The split should partition every input item exactly once."""
+    items = [("cam1", i) for i in range(7)]
+    train_items, val_items = chronological_split_by_camera(items, train_ratio=0.5)
+
+    assert set(train_items).isdisjoint(set(val_items))
+    assert set(train_items) | set(val_items) == set(items)
+
+
+def test_chronological_split_by_camera_train_precedes_val_even_if_input_shuffled() -> None:
+    """Every train frame for a camera must be earlier than every val frame for it,
+    regardless of the order items are passed in."""
+    items = [("cam1", i) for i in [5, 1, 9, 3, 7, 2, 8, 4, 6, 0]]
+    train_items, val_items = chronological_split_by_camera(items, train_ratio=0.6)
+
+    max_train_frame = max(frame_idx for _, frame_idx in train_items)
+    min_val_frame = min(frame_idx for _, frame_idx in val_items)
+    assert max_train_frame < min_val_frame
+
+
+def test_chronological_split_by_camera_rejects_invalid_ratio() -> None:
+    """A train_ratio outside (0, 1) should raise ValueError."""
+    try:
+        chronological_split_by_camera([("cam1", 0)], train_ratio=0.0)
         assert False, "Expected ValueError"
     except ValueError:
         pass
