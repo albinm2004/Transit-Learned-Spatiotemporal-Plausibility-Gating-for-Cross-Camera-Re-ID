@@ -1,0 +1,5 @@
+image_path,camera_id,track_id,frame_id,timestamp
+cam01/track_12_001.jpg,cam01,12,1001,33.36
+cam01/track_12_002.jpg,cam01,12,1011,33.70
+cam02/track_7_001.jpg,cam02,7,2050,68.33
+cam02/track_7_002.jpg,cam02,7,2060,68.67

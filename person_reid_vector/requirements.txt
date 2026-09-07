@@ -1,0 +1,7 @@
+torch>=2.1.0
+torchvision>=0.16.0
+torchreid>=0.2.5
+opencv-python>=4.9.0
+numpy>=1.26.0
+faiss-cpu>=1.8.0
+Pillow>=10.0.0
