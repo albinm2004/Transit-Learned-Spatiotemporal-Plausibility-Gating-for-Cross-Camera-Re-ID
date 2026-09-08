@@ -57,6 +57,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--conf", type=float, default=None, help="Override the detection confidence threshold.")
     parser.add_argument("--device", type=str, default=None, help="Override the device ('cuda'/'cpu'/'auto').")
     parser.add_argument(
+        "--tracker",
+        type=str,
+        default=None,
+        help="Override the tracker config (ignored with --detect-only). Ultralytics ships two built-in "
+        "options: 'bytetrack.yaml' (motion-only, the config default) and 'botsort.yaml' (adds camera-motion "
+        "compensation + appearance re-ID; slower, often steadier through occlusion/crowding). Any other "
+        "tracker (OC-SORT, StrongSORT, etc.) isn't wired in here -- see CameraTracker in "
+        "src/transit/tracking/tracker.py for where to add one.",
+    )
+    parser.add_argument(
         "--camera-id", type=str, default="smoke_test", help="Label stored on each Detection/Tracklet."
     )
     parser.add_argument(
@@ -129,7 +139,12 @@ def main() -> None:
         overrides["detection_conf_threshold"] = args.conf
     if args.device is not None:
         overrides["device"] = args.device
+    if args.tracker is not None:
+        overrides["tracker_config"] = args.tracker
     config = load_config(args.config, overrides=overrides or None)
+
+    if args.tracker is not None and args.detect_only:
+        logger.warning("--tracker '%s' has no effect with --detect-only (no tracker is used).", args.tracker)
 
     output_path = Path(args.output) if args.output else video_path.with_name(f"{video_path.stem}_annotated.mp4")
 

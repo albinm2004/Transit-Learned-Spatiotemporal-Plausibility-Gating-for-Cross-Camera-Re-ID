@@ -13,3 +13,6 @@ venv/
 data/
 outputs/
 datasets/
+
+# smoke_test_video.py output -- large, regenerable locally, never commit
+*_annotated.mp4
