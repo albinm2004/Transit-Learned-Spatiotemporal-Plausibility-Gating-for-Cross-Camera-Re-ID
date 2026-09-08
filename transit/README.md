@@ -33,15 +33,23 @@ one scene (skip `depth_maps/`, which this project doesn't use):
 
 ```bash
 pip install -U huggingface_hub
-huggingface-cli download nvidia/PhysicalAI-SmartSpaces \
-  --repo-type dataset \
-  --include "MTMC_Tracking_2025/train/Warehouse_000/**" \
-  --exclude "MTMC_Tracking_2025/train/Warehouse_000/depth_maps/**" \
-  --local-dir data/raw/PhysicalAI-SmartSpaces
+hf download nvidia/PhysicalAI-SmartSpaces --repo-type dataset --include "MTMC_Tracking_2025/train/Warehouse_000/**" --exclude "MTMC_Tracking_2025/train/Warehouse_000/depth_maps/**" --local-dir data/raw/PhysicalAI-SmartSpaces
 ```
 
-(~3.8 GB for Warehouse_000's videos + ground_truth.json + calibration.json + map.png,
-vs. ~7+ GB if depth_maps/ is included.)
+(One line on purpose -- `\` line continuation doesn't work the same across bash/cmd/PowerShell,
+so this is written to paste as-is anywhere. `huggingface-cli` is the old, now-deprecated command
+name; use `hf` as shown. ~3.8 GB for Warehouse_000's videos + ground_truth.json +
+calibration.json + map.png, vs. ~7+ GB if depth_maps/ is included.)
+
+**If this fails with `[SSL: CERTIFICATE_VERIFY_FAILED] unable to get local issuer certificate`**
+(common on Windows behind a campus/institutional network or antivirus doing HTTPS
+inspection -- the intercepting certificate is trusted by Windows but not by Python's
+bundled `certifi`): first confirm `https://huggingface.co` loads fine in a normal
+browser on the same machine, then run `pip install pip-system-certs` and retry -- this
+makes Python trust whatever's in the Windows certificate store, which fixes it in one
+shot. If the browser *also* shows a certificate warning, that's a different, real
+network block rather than a trusted-but-unrecognized proxy, and needs different
+troubleshooting (campus IT, a different network).
 
 Then point the pipeline at it by editing [configs/default.yaml](configs/default.yaml):
 
