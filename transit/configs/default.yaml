@@ -4,11 +4,12 @@
 # --- Dataset / paths -------------------------------------------------------
 
 # Root directory containing downloaded scene data (NVIDIA PhysicalAI-SmartSpaces /
-# MTMC_Tracking_2025 layout: <dataset_root>/<scene_name>/<camera_id>/...).
-dataset_root: "data/raw"
+# MTMC_Tracking_2025 layout: <dataset_root>/<scene_name>/videos/<camera_id>.mp4,
+# <dataset_root>/<scene_name>/calibration.json, <dataset_root>/<scene_name>/ground_truth.json).
+dataset_root: "data/raw/PhysicalAI-SmartSpaces/MTMC_Tracking_2025/train"
 
 # Name of the scene (subdirectory of dataset_root) to process.
-scene_name: "scene_001"
+scene_name: "Warehouse_000"
 
 # Directory where pipeline outputs (tracklets, embeddings, candidates, models) are written.
 output_dir: "outputs"
