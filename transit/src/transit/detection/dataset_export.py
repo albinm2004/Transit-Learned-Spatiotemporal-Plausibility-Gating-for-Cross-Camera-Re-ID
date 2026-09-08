@@ -9,11 +9,13 @@ Produces the standard Ultralytics detection dataset layout::
         labels/val/<camera_id>_<frame_idx>.txt
         dataset.yaml
 
-TODO(tomorrow): the ground-truth JSON schema assumed by
-``load_ground_truth_annotations`` below is a provisional best guess and MUST be
-verified against a real downloaded MTMC_Tracking_2025 ground-truth file before
-running this for real -- see the TODO comment inside that function for exactly
-where the assumption is made.
+The ground-truth JSON schema assumed by ``load_ground_truth_annotations`` below
+has been confirmed against the dataset's own Hugging Face README (Sept 2026),
+replacing an earlier provisional guess -- see that function's docstring. One
+thing that specific guess is still unverified: the exact ``object_type`` string
+used for person annotations (``_PERSON_OBJECT_TYPES`` below assumes "Person");
+``load_ground_truth_annotations`` logs any *other* object types it skips, so
+check the log on first real run against a downloaded file.
 """
 
 from __future__ import annotations
@@ -36,6 +38,11 @@ logger = logging.getLogger(__name__)
 _PERSON_CLASS_ID = 0
 _SPLIT_SEED = 42
 
+# TODO: confirm this against a real downloaded ground_truth.json (see module
+# docstring) -- the dataset may label other object types (vehicles, robots, etc.
+# in some scenes) that must NOT be exported as YOLO "person" labels.
+_PERSON_OBJECT_TYPES = {"Person"}
+
 
 @dataclass
 class GroundTruthBox:
@@ -50,48 +57,73 @@ class GroundTruthBox:
     bbox: tuple[float, float, float, float]
 
 
-def load_ground_truth_annotations(gt_path: str | Path) -> dict[int, list[GroundTruthBox]]:
-    """Load per-frame ground-truth person boxes from a scene's annotation file.
+def load_ground_truth_annotations(
+    gt_path: str | Path, object_types: set[str] | None = None
+) -> dict[str, dict[int, list[GroundTruthBox]]]:
+    """Load a scene's ground truth and split it out per camera.
 
-    TODO(tomorrow): This assumes a JSON structure of the form::
+    MTMC_Tracking_2025 ships ONE ground_truth.json per SCENE (not per camera),
+    keyed by frame id at the top level, with each object's 2D box given per
+    camera it's visible in -- confirmed against the dataset's own Hugging Face
+    README (Sept 2026), replacing an earlier provisional per-camera-file guess::
 
         {
-          "frames": [
-            {"frameId": 0, "objects": [{"objectId": "1", "bbox": [xmin, ymin, xmax, ymax]}, ...]},
+          "<frame_id>": [
+            {
+              "object_type": "Person",
+              "object_id": <int>,
+              "2d_bounding_box_visible": {"<camera_id>": [xmin, ymin, xmax, ymax], ...}
+              # (plus 3d_location / 3d_bounding_box_scale / 3d_bounding_box_rotation,
+              # unused here)
+            },
             ...
-          ]
+          ],
+          ...
         }
 
-    This is a provisional guess at the MTMC_Tracking_2025 ground-truth schema
-    (in particular whether "bbox" is [xmin, ymin, xmax, ymax] or
-    [x, y, width, height], and the exact key names) and must be verified against
-    a real downloaded file before this function is trusted for a real export.
+    This is called ONCE per scene (the file can be very large, e.g. ~300MB for a
+    25-camera warehouse scene) -- callers should NOT call this per camera.
 
     Args:
-        gt_path: Path to the camera's ground-truth annotation JSON file.
+        gt_path: Path to the scene's ground_truth.json (see MTMCScene.ground_truth_path).
+        object_types: Object type strings to keep; defaults to
+            ``_PERSON_OBJECT_TYPES``. Anything else (vehicles, robots, etc., where
+            present in a scene) is dropped -- see the module docstring re:
+            confirming the exact person object_type string.
 
     Returns:
-        A mapping from frame index to the list of GroundTruthBox annotated on
-        that frame.
+        camera_id -> {frame_idx -> [GroundTruthBox, ...]}.
     """
+    object_types = object_types or _PERSON_OBJECT_TYPES
     gt_path = Path(gt_path)
     with gt_path.open("r", encoding="utf-8") as f:
         raw = json.load(f)
 
-    annotations: dict[int, list[GroundTruthBox]] = {}
-    for frame_entry in raw.get("frames", []):
-        frame_idx = int(frame_entry["frameId"])
-        boxes = [
-            GroundTruthBox(
-                object_id=str(obj["objectId"]),
-                bbox=tuple(float(v) for v in obj["bbox"]),  # type: ignore[arg-type]
-            )
-            for obj in frame_entry.get("objects", [])
-        ]
-        annotations[frame_idx] = boxes
+    per_camera: dict[str, dict[int, list[GroundTruthBox]]] = {}
+    skipped_types: set[str] = set()
+    for frame_id_str, objects in raw.items():
+        frame_idx = int(frame_id_str)
+        for obj in objects:
+            object_type = obj.get("object_type", "")
+            if object_type not in object_types:
+                skipped_types.add(object_type)
+                continue
+            object_id = str(obj["object_id"])
+            boxes_by_camera = obj.get("2d_bounding_box_visible", {}) or {}
+            for camera_id, bbox in boxes_by_camera.items():
+                per_camera.setdefault(camera_id, {}).setdefault(frame_idx, []).append(
+                    GroundTruthBox(object_id=object_id, bbox=tuple(float(v) for v in bbox))
+                )
 
-    logger.info("Loaded ground truth for %d frame(s) from %s", len(annotations), gt_path)
-    return annotations
+    if skipped_types:
+        logger.info("Skipped non-%s object type(s) in %s: %s", sorted(object_types), gt_path, sorted(skipped_types))
+    logger.info(
+        "Loaded ground truth for %d camera(s) from %s (%d frame(s) total)",
+        len(per_camera),
+        gt_path,
+        len(raw),
+    )
+    return per_camera
 
 
 def bbox_to_yolo_label(
@@ -255,11 +287,17 @@ def export_yolo_dataset(config: TransitConfig) -> Path:
         (export_dir / "labels" / split).mkdir(parents=True, exist_ok=True)
 
     all_items: list[tuple[str, int]] = []  # (camera_id, frame_idx)
+    # Loaded ONCE for the whole scene -- ground_truth.json is a single per-scene
+    # file (can be very large), not one file per camera. See
+    # load_ground_truth_annotations's docstring.
+    all_annotations = load_ground_truth_annotations(scene.ground_truth_path())
+
     per_camera_annotations: dict[str, dict[int, list[GroundTruthBox]]] = {}
 
     for camera_id in scene.camera_ids:
-        gt_path = scene.ground_truth_path(camera_id)
-        annotations = load_ground_truth_annotations(gt_path)
+        annotations = all_annotations.get(camera_id, {})
+        if not annotations:
+            logger.warning("No ground-truth annotations found for camera '%s'", camera_id)
         per_camera_annotations[camera_id] = annotations
 
         sampled_frames = sample_frame_indices(list(annotations.keys()), config.training.frame_sample_stride)

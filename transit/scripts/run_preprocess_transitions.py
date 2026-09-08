@@ -26,7 +26,7 @@ from transit.config import load_config
 from transit.data.calibration import load_camera_calibration
 from transit.data.mtmc_dataset import MTMCScene
 from transit.data.schema import Detection
-from transit.detection.dataset_export import load_ground_truth_annotations
+from transit.detection.dataset_export import GroundTruthBox, load_ground_truth_annotations
 from transit.preprocessing.camera_pairs import classify_camera_pairs
 from transit.preprocessing.transitions import compute_camera_pair_stats, derive_transition_events
 from transit.preprocessing.visibility import compute_fov_footprint, compute_visibility_intervals
@@ -52,18 +52,18 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _load_object_detections(scene: MTMCScene, camera_id: str) -> dict[str, list[Detection]]:
-    """Load a camera's ground truth as {object_id: [Detection, ...]}."""
-    gt_path = scene.ground_truth_path(camera_id)
-    annotations = load_ground_truth_annotations(gt_path)
+def _object_detections_for_camera(
+    camera_id: str, camera_annotations: dict[int, list[GroundTruthBox]], fps: float
+) -> dict[str, list[Detection]]:
+    """Turn one camera's pre-loaded {frame_idx: [GroundTruthBox, ...]} into
+    {object_id: [Detection, ...]}.
 
-    video_path = scene.video_path(camera_id)
-    cap = cv2.VideoCapture(str(video_path))
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    cap.release()
-
+    Ground truth is loaded ONCE per scene in main() (see load_ground_truth_annotations's
+    docstring -- ground_truth.json is a single, possibly very large, per-scene file,
+    not one per camera) and sliced per camera here.
+    """
     object_detections: dict[str, list[Detection]] = {}
-    for frame_idx, boxes in annotations.items():
+    for frame_idx, boxes in camera_annotations.items():
         for box in boxes:
             detection = Detection(
                 camera_id=camera_id,
@@ -91,9 +91,20 @@ def main() -> None:
         logger.warning("No cameras found in scene directory %s", config.scene_dir)
         return
 
+    # Loaded ONCE for the whole scene -- see _object_detections_for_camera's docstring.
+    all_annotations = load_ground_truth_annotations(scene.ground_truth_path())
+
     merged_object_detections: dict[str, list[Detection]] = {}
     for camera_id in camera_ids:
-        for object_id, detections in _load_object_detections(scene, camera_id).items():
+        video_path = scene.video_path(camera_id)
+        cap = cv2.VideoCapture(str(video_path))
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        cap.release()
+
+        camera_annotations = all_annotations.get(camera_id, {})
+        if not camera_annotations:
+            logger.warning("No ground-truth annotations found for camera '%s'", camera_id)
+        for object_id, detections in _object_detections_for_camera(camera_id, camera_annotations, fps).items():
             merged_object_detections.setdefault(object_id, []).extend(detections)
 
     intervals = compute_visibility_intervals(merged_object_detections)

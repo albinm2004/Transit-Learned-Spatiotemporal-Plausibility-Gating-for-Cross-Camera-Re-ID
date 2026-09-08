@@ -24,21 +24,50 @@ fails on it, install from source:
 pip install git+https://github.com/KaiyangZhou/deep-person-reid.git
 ```
 
-Point the pipeline at a downloaded scene by editing [configs/default.yaml](configs/default.yaml):
+### Downloading a scene
+
+The target dataset is [nvidia/PhysicalAI-SmartSpaces](https://huggingface.co/datasets/nvidia/PhysicalAI-SmartSpaces)
+(MTMC_Tracking_2025 edition). It's split `train/` (Warehouse_000-014) and `val/`
+(Warehouse_015, Warehouse_016, Lab_000, Hospital_000) at the top level -- pull just
+one scene (skip `depth_maps/`, which this project doesn't use):
+
+```bash
+pip install -U huggingface_hub
+huggingface-cli download nvidia/PhysicalAI-SmartSpaces \
+  --repo-type dataset \
+  --include "MTMC_Tracking_2025/train/Warehouse_000/**" \
+  --exclude "MTMC_Tracking_2025/train/Warehouse_000/depth_maps/**" \
+  --local-dir data/raw/PhysicalAI-SmartSpaces
+```
+
+(~3.8 GB for Warehouse_000's videos + ground_truth.json + calibration.json + map.png,
+vs. ~7+ GB if depth_maps/ is included.)
+
+Then point the pipeline at it by editing [configs/default.yaml](configs/default.yaml):
 
 ```yaml
-dataset_root: "data/raw"      # directory containing <scene_name>/<camera_id>/...
-scene_name: "scene_001"
+dataset_root: "data/raw/PhysicalAI-SmartSpaces/MTMC_Tracking_2025/train"   # note: train/, not MTMC_Tracking_2025/ itself
+scene_name: "Warehouse_000"
 output_dir: "outputs"
 ```
 
-Expected scene layout (see [src/transit/data/mtmc_dataset.py](src/transit/data/mtmc_dataset.py)):
+Confirmed scene layout (see [src/transit/data/mtmc_dataset.py](src/transit/data/mtmc_dataset.py) --
+verified against the dataset's own Hugging Face README, Sept 2026; this replaced an
+earlier provisional per-camera-subdirectory guess that did not match the real dataset):
 
 ```
-<dataset_root>/<scene_name>/<camera_id>/video.mp4
-<dataset_root>/<scene_name>/<camera_id>/calibration.json
-<dataset_root>/<scene_name>/<camera_id>/ground_truth.json   # filename TBD, see NOTES_FOR_TOMORROW.md
+<dataset_root>/<scene_name>/videos/<camera_id>.mp4   # one file per camera, e.g. Camera_0000.mp4
+<dataset_root>/<scene_name>/calibration.json         # ONE file for the whole scene, all cameras
+<dataset_root>/<scene_name>/ground_truth.json        # ONE file for the whole scene, all cameras
+<dataset_root>/<scene_name>/map.png                  # top-down visualization (unused here)
 ```
+
+One thing still unverified: the exact `object_type` string used for person
+annotations in `ground_truth.json` (`load_ground_truth_annotations` assumes
+`"Person"`; it logs any *other* object types it skips, so check the log on first
+real run and adjust `_PERSON_OBJECT_TYPES` in
+[src/transit/detection/dataset_export.py](src/transit/detection/dataset_export.py)
+if needed).
 
 ## Quick sanity check (no dataset needed)
 

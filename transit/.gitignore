@@ -10,9 +10,14 @@ venv/
 *.pth
 
 # Data, exported YOLO datasets, and pipeline outputs
-data/
-outputs/
-datasets/
+# NOTE: these are anchored to the repo root (leading "/") on purpose -- an
+# earlier unanchored "data/" here matched ANY directory named "data" anywhere
+# in the tree, which silently excluded src/transit/data/ (schema.py,
+# mtmc_dataset.py, calibration.py, __init__.py) from every commit since the
+# very first one. That subpackage was never on GitHub until this fix.
+/data/
+/outputs/
+/datasets/
 
 # smoke_test_video.py output -- large, regenerable locally, never commit by default
 *_annotated.mp4
