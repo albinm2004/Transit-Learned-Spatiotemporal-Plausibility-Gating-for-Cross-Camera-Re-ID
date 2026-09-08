@@ -62,6 +62,14 @@ smoke test only: a single video has no cross-camera ground truth, so it can't
 validate Re-ID matching or the plausibility gate -- see `--help` for options
 (`--detect-only`, `--weights` for a fine-tuned checkpoint, `--max-frames`, `--stride`).
 
+A pre-rendered example of that output is committed at
+[samples/yolo11x_smoke_test_cctv_footage_annotated.mp4](samples/yolo11x_smoke_test_cctv_footage_annotated.mp4)
+(H.264, ~38 MB) so you can see the result without running anything. Note:
+`smoke_test_video.py`'s own output uses `cv2.VideoWriter`'s `mp4v` codec and is
+much larger (~110 MB for this clip) -- `*_annotated.mp4` is gitignored by
+default for exactly that reason; this one file was re-encoded with
+`ffmpeg -c:v libx264 -crf 23` before being committed as a deliberate exception.
+
 ## Status
 
 ### Fully implemented and runnable
