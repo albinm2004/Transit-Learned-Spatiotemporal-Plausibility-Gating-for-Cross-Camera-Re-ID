@@ -23,6 +23,10 @@ dependencies = [
     "opencv-python>=4.9.0",
     "numpy>=1.26.0",
     "pandas>=2.1.0",
+    # Needed by run_detect_track.py's default Parquet output format
+    # (scripts/run_detect_track.py --format parquet). Without this, the whole
+    # detect+track stage runs to completion and then crashes writing output.
+    "pyarrow>=14.0.0",
     "scipy>=1.11.0",
     "scikit-learn>=1.4.0",
     "pyyaml>=6.0.1",
