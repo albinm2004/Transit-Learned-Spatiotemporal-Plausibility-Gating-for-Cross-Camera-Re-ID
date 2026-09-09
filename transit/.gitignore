@@ -25,3 +25,4 @@ venv/
 # GitHub's 100MB limit -- the mp4v-encoded output cv2.VideoWriter produces by default
 # is ~110MB and must NOT be committed as-is; re-encode with ffmpeg/libx264 first).
 !samples/yolo11x_smoke_test_cctv_footage_annotated.mp4
+/runs/

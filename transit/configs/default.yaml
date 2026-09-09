@@ -38,9 +38,8 @@ device: "auto"
 # torchreid model name for the pretrained OSNet feature extractor.
 reid_model_name: "osnet_x1_0"
 
-# Source of pretrained weights: a torchreid model-zoo key or a local path to a
-# downloaded checkpoint. "market1501" and "msmt17" are the two pretrained sources
-# under consideration; either is used frozen (no fine-tuning) in this pass.
+# Source of the frozen pretrained OSNet checkpoint downloaded from torchreid's
+# model zoo.
 reid_weights_source: "market1501"
 
 # --- Candidate generation / matching --------------------------------------------
