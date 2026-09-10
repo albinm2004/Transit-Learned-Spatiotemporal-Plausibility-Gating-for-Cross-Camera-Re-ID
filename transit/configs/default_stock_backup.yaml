@@ -1,0 +1,21 @@
+dataset_root: "data/raw/PhysicalAI-SmartSpaces/MTMC_Tracking_2025/train"
+scene_name: "Warehouse_000"
+output_dir: "outputs_stock_backup"
+detector_model: null
+detection_conf_threshold: 0.4
+tracker_config: "bytetrack.yaml"
+device: "auto"
+reid_model_name: "osnet_x1_0"
+reid_weights_source: "market1501"
+candidate_top_k: 10
+baseline_similarity_threshold: 0.5
+gate_model_type: "logistic"
+training:
+  base_checkpoint: null
+  epochs: 50
+  imgsz: 960
+  batch: 8
+  frame_sample_stride: 10
+  train_val_split: 0.85
+  output_dir: "outputs/yolo_finetune"
+  dataset_export_dir: "outputs/yolo_dataset"
