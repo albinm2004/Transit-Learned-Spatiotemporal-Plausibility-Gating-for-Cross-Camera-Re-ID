@@ -125,6 +125,10 @@ class CandidateMatch:
             (aggregated) Re-ID embeddings, in [-1, 1].
         gate_score: Plausibility score assigned by the learned gate, in [0, 1].
             None until the gate (Part 3) has scored this candidate.
+        oracle_score: Geometric-feasibility score assigned by the calibration-based
+            evaluation-only oracle (see gate/calibration_oracle.py), in [0, 1].
+            None until the oracle has scored this candidate. Never used as a gate
+            training/inference input -- evaluation comparison only.
     """
 
     src_camera_id: str
@@ -133,3 +137,4 @@ class CandidateMatch:
     dst_track_id: int
     appearance_similarity: float
     gate_score: float | None = None
+    oracle_score: float | None = None
