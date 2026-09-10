@@ -28,6 +28,7 @@ import logging
 from pathlib import Path
 
 import cv2
+import joblib
 import numpy as np
 import pandas as pd
 
@@ -351,6 +352,13 @@ def main() -> None:
 
     # --- Train the gate ---
     model, threshold = train_logistic_gate(train_features, train_labels, val_features, val_labels, config)
+
+    model_path = output_dir / "gate_model.joblib"
+    joblib.dump(
+        {"model": model, "threshold": threshold, "feature_columns": ["appearance_similarity", "transition_log_likelihood"]},
+        model_path,
+    )
+    logger.info("Saved trained gate -> %s", model_path)
 
     eval_candidates = buckets["eval"]
     eval_probs = model.predict_proba(eval_features)[:, 1] if len(eval_candidates) else np.array([])

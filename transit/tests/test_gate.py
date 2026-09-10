@@ -130,9 +130,12 @@ class TestTrainLogisticGate:
         preds = model.predict_proba(features[split:])[:, 1] >= threshold
         accuracy = (preds == labels[split:]).mean()
         assert accuracy > 0.9
-        # Both features should matter (positive coefficients on this toy problem).
-        assert model.coef_[0][0] > 0
-        assert model.coef_[0][1] > 0
+        # model is a StandardScaler -> LogisticRegression Pipeline; reach the
+        # classifier step directly for its (standardized) coefficients. Both
+        # features should matter (positive coefficients on this toy problem).
+        classifier = model.named_steps["classifier"]
+        assert classifier.coef_[0][0] > 0
+        assert classifier.coef_[0][1] > 0
 
     def test_rejects_wrong_model_type(self):
         config = _make_config(gate_model_type="mlp")

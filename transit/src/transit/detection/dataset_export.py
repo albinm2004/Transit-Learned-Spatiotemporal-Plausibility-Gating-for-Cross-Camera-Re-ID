@@ -104,12 +104,15 @@ def load_ground_truth_annotations(
     for frame_id_str, objects in raw.items():
         frame_idx = int(frame_id_str)
         for obj in objects:
-            object_type = obj.get("object_type", "")
+            object_type = obj.get("object type", obj.get("object_type", ""))
             if object_type not in object_types:
                 skipped_types.add(object_type)
                 continue
-            object_id = str(obj["object_id"])
-            boxes_by_camera = obj.get("2d_bounding_box_visible", {}) or {}
+            object_id = str(obj["object id"] if "object id" in obj else obj["object_id"])
+            boxes_by_camera = obj.get(
+                "2d bounding box visible",
+                obj.get("2d_bounding_box_visible", {}),
+            ) or {}
             for camera_id, bbox in boxes_by_camera.items():
                 per_camera.setdefault(camera_id, {}).setdefault(frame_idx, []).append(
                     GroundTruthBox(object_id=object_id, bbox=tuple(float(v) for v in bbox))

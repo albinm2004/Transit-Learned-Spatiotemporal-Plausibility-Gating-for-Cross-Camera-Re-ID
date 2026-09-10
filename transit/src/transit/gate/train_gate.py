@@ -7,6 +7,9 @@ from typing import Any
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 from transit.config import TransitConfig
 
@@ -55,10 +58,21 @@ def train_logistic_gate(
     Fits `sklearn.linear_model.LogisticRegression` with `class_weight="balanced"`
     (true cross-camera matches are a small minority of the candidate pool, since
     each source tracklet gets `candidate_top_k` candidates but at most one is
-    correct) on `(train_features, train_labels)`, then sweeps decision thresholds
-    on `(val_features, val_labels)` to pick the threshold maximizing F1. This
-    threshold is what turns a continuous `gate_score` into an accept/reject
-    decision, analogous to matching/baseline_matcher.py's `threshold` parameter.
+    correct), wrapped in a `StandardScaler` -> `LogisticRegression` Pipeline.
+
+    Standardization matters here beyond the usual optimization-stability reason:
+    `appearance_similarity` lives in roughly [0, 1] while
+    `transition_log_likelihood` can range over tens of log-units, so the model's
+    *raw* coefficients would not be comparable to each other -- a claim like "the
+    gate weighs appearance more than timing" is only meaningful on the
+    standardized coefficients this function logs (`model.named_steps["classifier"].coef_`
+    on unit-scaled inputs), not on coefficients fit to the raw, differently-scaled
+    features.
+
+    After fitting, sweeps decision thresholds on `(val_features, val_labels)` to
+    pick the threshold maximizing F1. This threshold is what turns a continuous
+    `gate_score` into an accept/reject decision, analogous to
+    matching/baseline_matcher.py's `threshold` parameter.
 
     Note: this threshold is tuned for a balanced precision/recall trade-off (F1).
     For the paper's reported operating point you may instead want to re-tune
@@ -76,7 +90,11 @@ def train_logistic_gate(
         config: TransitConfig (must have `config.gate_model_type == "logistic"`).
 
     Returns:
-        (fitted_model, decision_threshold).
+        (fitted_pipeline, decision_threshold). `fitted_pipeline` is a sklearn
+        `Pipeline` with `"scaler"` and `"classifier"` steps -- use
+        `fitted_pipeline.predict_proba(...)` as usual; reach the raw
+        LogisticRegression via `fitted_pipeline.named_steps["classifier"]` if you
+        need `.coef_`/`.intercept_` directly (e.g. for the decision-boundary plot).
 
     Raises:
         ValueError: If `config.gate_model_type != "logistic"`, or if
@@ -96,23 +114,34 @@ def train_logistic_gate(
             "for any train-split identity; check the IoU-linking log output."
         )
 
-    model = LogisticRegression(class_weight="balanced", max_iter=1000)
+    model = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("classifier", LogisticRegression(class_weight="balanced", max_iter=1000)),
+        ]
+    )
     model.fit(train_features, train_labels)
 
     val_probs = model.predict_proba(val_features)[:, 1] if len(val_features) else np.array([])
     threshold, best_f1 = _sweep_best_f1_threshold(val_probs, val_labels)
 
+    val_auc = float("nan")
+    if len(val_labels) and len(np.unique(val_labels)) == 2:
+        val_auc = float(roc_auc_score(val_labels, val_probs))
+
+    classifier = model.named_steps["classifier"]
     logger.info(
         "Trained logistic gate on %d example(s) (%.1f%% positive): "
-        "coef=[appearance=%.4f, transition_log_likelihood=%.4f] intercept=%.4f; "
-        "tuned threshold=%.3f (val F1=%.4f, n_val=%d)",
+        "standardized coef=[appearance=%.4f, transition_log_likelihood=%.4f] intercept=%.4f; "
+        "tuned threshold=%.3f (val F1=%.4f, val AUC=%.4f, n_val=%d)",
         len(train_labels),
         100.0 * train_labels.mean(),
-        model.coef_[0][0],
-        model.coef_[0][1],
-        model.intercept_[0],
+        classifier.coef_[0][0],
+        classifier.coef_[0][1],
+        classifier.intercept_[0],
         threshold,
         best_f1,
+        val_auc,
         len(val_labels),
     )
     return model, threshold
