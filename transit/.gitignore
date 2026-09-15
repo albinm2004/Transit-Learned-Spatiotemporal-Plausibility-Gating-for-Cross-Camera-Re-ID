@@ -26,3 +26,9 @@ venv/
 # is ~110MB and must NOT be committed as-is; re-encode with ffmpeg/libx264 first).
 !samples/yolo11x_smoke_test_cctv_footage_annotated.mp4
 /runs/
+
+# Additional stock-detector output variants and run logs -- same anchoring
+# rationale as /outputs/ above; these are data/log directories, not code.
+/outputs_stock_backup/
+/outputs_stock_v2/
+/logs/
