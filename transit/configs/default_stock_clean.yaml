@@ -1,6 +1,6 @@
-dataset_root: "data/raw/PhysicalAI-SmartSpaces/MTMC_Tracking_2025/val"
-scene_name: "Warehouse_015"
-output_dir: "outputs"
+dataset_root: "data/raw/PhysicalAI-SmartSpaces/MTMC_Tracking_2025/train"
+scene_name: "Warehouse_000"
+output_dir: "outputs_stock_v2"
 detector_model: null
 detection_conf_threshold: 0.4
 tracker_config: "bytetrack.yaml"

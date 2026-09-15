@@ -6,7 +6,7 @@ detection_conf_threshold: 0.4
 tracker_config: "bytetrack.yaml"
 device: "auto"
 reid_model_name: "osnet_x1_0"
-reid_weights_source: "market1501"
+reid_weights_source: "weights/osnet_x1_0_market1501.pth"
 candidate_top_k: 10
 baseline_similarity_threshold: 0.5
 gate_model_type: "logistic"

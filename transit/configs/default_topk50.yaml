@@ -45,7 +45,7 @@ reid_weights_source: "weights/osnet_x1_0_market1501.pth"
 # --- Candidate generation / matching --------------------------------------------
 
 # Number of nearest cross-camera candidates to keep per tracklet during candidate generation.
-candidate_top_k: 10
+candidate_top_k: 50
 
 # Minimum cosine similarity for the appearance-only baseline matcher to accept a match.
 baseline_similarity_threshold: 0.5
