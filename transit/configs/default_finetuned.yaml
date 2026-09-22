@@ -1,0 +1,81 @@
+# Default configuration for the Transit pipeline.
+# Override any of these via a scene-specific YAML file or CLI flags in scripts/.
+
+# --- Dataset / paths -------------------------------------------------------
+
+# Root directory containing downloaded scene data (NVIDIA PhysicalAI-SmartSpaces /
+# MTMC_Tracking_2025 layout: <dataset_root>/<scene_name>/videos/<camera_id>.mp4,
+# <dataset_root>/<scene_name>/calibration.json, <dataset_root>/<scene_name>/ground_truth.json).
+dataset_root: "data/raw/PhysicalAI-SmartSpaces/MTMC_Tracking_2025/train"
+
+# Name of the scene (subdirectory of dataset_root) to process.
+scene_name: "Warehouse_000"
+
+# Directory where pipeline outputs (tracklets, embeddings, candidates, models) are written.
+output_dir: "outputs_finetuned"
+
+# --- Detection ---------------------------------------------------------------
+
+# Ultralytics detector checkpoint. Leave as null to auto-detect: config.py defaults
+# to "yolo11x.pt" but upgrades to "yolo26x.pt" automatically if that checkpoint is
+# available in the installed ultralytics version. Set explicitly to override, e.g.
+# point this at a fine-tuned checkpoint produced by detection/train.py.
+detector_model: "runs/detect/outputs/yolo_finetune/finetune/weights/best.pt"
+
+# Minimum detection confidence to keep a "person" detection.
+detection_conf_threshold: 0.4
+
+# --- Tracking ------------------------------------------------------------------
+
+# Ultralytics tracker config name, resolved by the ultralytics package at runtime.
+tracker_config: "bytetrack.yaml"
+
+# "cuda", "cpu", or "auto" to auto-detect based on torch.cuda.is_available().
+device: "auto"
+
+# --- Re-ID -----------------------------------------------------------------------
+
+# torchreid model name for the pretrained OSNet feature extractor.
+reid_model_name: "osnet_x1_0"
+
+# Source of the frozen pretrained OSNet checkpoint downloaded from torchreid's
+# model zoo.
+reid_weights_source: "weights/osnet_x1_0_market1501.pth"
+
+# --- Candidate generation / matching --------------------------------------------
+
+# Number of nearest cross-camera candidates to keep per tracklet during candidate generation.
+candidate_top_k: 10
+
+# Minimum cosine similarity for the appearance-only baseline matcher to accept a match.
+baseline_similarity_threshold: 0.5
+
+# --- Gate (Part 3 — not trained in this pass, but config surface exists now) ----
+
+# "logistic" or "mlp".
+gate_model_type: "logistic"
+
+# --- YOLO fine-tuning ------------------------------------------------------------
+
+training:
+  # Base checkpoint to fine-tune from (falls back to detector_model resolution logic
+  # if left null).
+  base_checkpoint: null
+
+  epochs: 50
+  imgsz: 960
+  batch: 8
+
+  # Frame-sampling strategy for turning annotated ground-truth video into training
+  # images: take every Nth annotated frame per camera, to avoid near-duplicate
+  # frames dominating the training set.
+  frame_sample_stride: 10
+
+  # Fraction of exported images assigned to the training split (remainder is val).
+  train_val_split: 0.85
+
+  # Where fine-tuned weights and Ultralytics run artifacts are written.
+  output_dir: "outputs/yolo_finetune"
+
+  # Where the exported YOLO-format dataset (images/, labels/, dataset.yaml) is written.
+  dataset_export_dir: "outputs/yolo_dataset"

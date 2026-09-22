@@ -372,6 +372,31 @@ def main() -> None:
     # --- Appearance-only baseline, on the same eval split ---
     baseline_accepted = match_baseline(eval_candidates, threshold=config.baseline_similarity_threshold)
 
+    # --- Dump per-candidate gate decisions for the dashboard (dashboard/build_dashboard_manifest.py) ---
+    gate_decisions = []
+    for candidate, features in zip(eval_candidates, eval_features):
+        src_key = (candidate.src_camera_id, candidate.src_track_id)
+        dst_key = (candidate.dst_camera_id, candidate.dst_track_id)
+        person_id = identity_map.get(src_key)
+        if person_id is None:
+            continue
+        gate_decisions.append({
+            "person_id": person_id,
+            "from_camera": candidate.src_camera_id,
+            "from_track_id": candidate.src_track_id,
+            "to_camera": candidate.dst_camera_id,
+            "to_track_id": candidate.dst_track_id,
+            "start": entry_times.get(dst_key, 0.0),
+            "end": exit_times.get(dst_key, 0.0),
+            "appearance_similarity": float(candidate.appearance_similarity),
+            "transit_plausibility": float(features[1]),
+            "accepted": bool(candidate.gate_score >= threshold),
+            "baseline_would_accept": bool(candidate.appearance_similarity >= config.baseline_similarity_threshold),
+        })
+    gate_decisions_path = output_dir / "gate_decisions.json"
+    gate_decisions_path.write_text(json.dumps(gate_decisions, indent=2), encoding="utf-8")
+    logger.info("Wrote %d per-candidate gate decision(s) -> %s", len(gate_decisions), gate_decisions_path)
+
     # --- Calibration oracle, evaluation-only ---
     have_oracle = False
     try:

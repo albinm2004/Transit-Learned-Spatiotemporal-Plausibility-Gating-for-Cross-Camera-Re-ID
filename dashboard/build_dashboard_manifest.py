@@ -145,7 +145,7 @@ def load_tracking_boxes(scene_dir: Path, camera: str, track_id: str) -> list[Box
     function that needs to change -- everything downstream just consumes
     the Box list this returns.
     """
-    tracks_path = scene_dir / camera / "tracks.parquet"
+    tracks_path = scene_dir / camera / "tracklets.parquet"
     if not tracks_path.exists():
         raise FileNotFoundError(
             f"{tracks_path} not found. ADAPT load_tracking_boxes() in this "
@@ -155,9 +155,13 @@ def load_tracking_boxes(scene_dir: Path, camera: str, track_id: str) -> list[Box
     import pandas as pd  # local import: only needed on the real-data path
 
     df = pd.read_parquet(tracks_path)
-    df = df[df["track_id"] == track_id].sort_values("frame")
+    df = df[df["track_id"] == int(track_id)].sort_values("frame_idx")
     return [
-        Box(frame=int(r.frame), x=int(r.x), y=int(r.y), w=int(r.w), h=int(r.h))
+        Box(
+            frame=int(r.frame_idx),
+            x=int(r.xmin), y=int(r.ymin),
+            w=int(r.xmax - r.xmin), h=int(r.ymax - r.ymin),
+        )
         for r in df.itertuples()
     ]
 
