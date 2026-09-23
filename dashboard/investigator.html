@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Transit Investigator</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;650;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -275,6 +276,7 @@
   .frame-wrap { position: relative; aspect-ratio: 16/10; border-radius: var(--radius-m); overflow: hidden; border: 1px solid var(--border); background: #0d1420; }
   .frame-wrap svg { width: 100%; height: 100%; display: block; transition: opacity 0.18s ease; }
   .frame-wrap.switching svg { opacity: 0; }
+  .frame-wrap video { width: 100%; height: 100%; display: block; object-fit: cover; background: #000; }
   .corner { position: absolute; width: 13px; height: 13px; border-color: rgba(230,170,80,0.8); pointer-events: none; z-index: 2; }
   .corner.tl { top: 6px; left: 6px; border-top: 2px solid; border-left: 2px solid; }
   .corner.tr { top: 6px; right: 6px; border-top: 2px solid; border-right: 2px solid; }
@@ -447,12 +449,13 @@
       <div class="panel-body">
         <div class="frame-wrap" id="frame-wrap">
           <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+          <video id="frame-video" muted loop playsinline style="display:none;"></video>
           <svg id="frame-svg" viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice"></svg>
           <div class="frame-overlay-top">
             <span id="frame-cam-label"></span>
             <span class="rec"><span class="dot"></span>TRACK</span>
           </div>
-          <div class="demo-badge" title="This clip is illustrative. Point the dashboard at a real manifest.json and this panel plays your actual cut footage with the actual tracker box, no other changes.">DEMO FOOTAGE</div>
+          <div id="demo-badge" class="demo-badge" title="This clip is illustrative. Point the dashboard at a real manifest.json and this panel plays your actual cut footage with the actual tracker box, no other changes.">DEMO FOOTAGE</div>
         </div>
         <div class="transport">
           <button id="prev-btn" aria-label="Previous camera">
@@ -792,29 +795,48 @@ function renderMap(person, activeIdx) {
 /* ---------------- playback frame (illustrative SVG, not real video) ---------------- */
 function renderFrame(appearance) {
   const cam = camById[appearance.camera];
-  const boxX = 118 + (hashStr(appearance.camera) % 40), boxY = 60;
-  const boxW = 58, boxH = 108;
-  const svg = `
-    <rect width="320" height="200" fill="#0d1420"/>
-    <g stroke="#1c2a3c" stroke-width="1">
-      ${Array.from({length:9}).map((_,i)=>`<line x1="0" y1="${i*24+20}" x2="320" y2="${i*24+20}"/>`).join("")}
-    </g>
-    <g stroke="#22314a" stroke-width="1" opacity="0.7">
-      ${Array.from({length:11}).map((_,i)=>`<line x1="${i*32}" y1="0" x2="${i*32}" y2="200"/>`).join("")}
-    </g>
-    <ellipse cx="${boxX+boxW/2}" cy="${boxY+boxH+6}" rx="26" ry="6" fill="#000" opacity="0.35"/>
-    <circle cx="${boxX+boxW/2}" cy="${boxY+18}" r="16" fill="#3a4a63"/>
-    <path d="M${boxX+7} ${boxY+108} q${boxW/2-7} -46 ${boxW-14} 0 l4 6 q-${boxW/2-9} 42 -${boxW-22} 0 z" fill="#3a4a63"/>
-    <rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" fill="none" stroke="#e3a64b" stroke-width="2"/>
-    ${[[boxX,boxY],[boxX+boxW,boxY],[boxX,boxY+boxH],[boxX+boxW,boxY+boxH]].map(([x,y])=>`
-      <path d="M${x-6} ${y} h6 v6" fill="none" stroke="#e3a64b" stroke-width="2.4" transform="translate(0,0)"/>
-    `).join("")}
-    <text x="${boxX}" y="${boxY-6}" font-family="IBM Plex Mono, monospace" font-size="9" fill="#e3a64b">${appearance.isEntry ? "entry" : (appearance.accepted ? "linked" : "candidate")}</text>
-  `;
   const wrap = document.getElementById("frame-wrap");
+  const video = document.getElementById("frame-video");
+  const svg = document.getElementById("frame-svg");
+  const badge = document.getElementById("demo-badge");
+
   wrap.classList.add("switching");
   requestAnimationFrame(() => {
-    document.getElementById("frame-svg").innerHTML = svg;
+    if (appearance.clip) {
+      video.pause();
+      video.src = appearance.clip;
+      video.style.display = "block";
+      svg.style.display = "none";
+      svg.innerHTML = "";
+      badge.style.display = "none";
+      video.load();
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+      video.removeAttribute("src");
+      video.style.display = "none";
+      svg.style.display = "block";
+      badge.style.display = "";
+      const boxX = 118 + (hashStr(appearance.camera) % 40), boxY = 60;
+      const boxW = 58, boxH = 108;
+      svg.innerHTML = `
+        <rect width="320" height="200" fill="#0d1420"/>
+        <g stroke="#1c2a3c" stroke-width="1">
+          ${Array.from({length:9}).map((_,i)=>`<line x1="0" y1="${i*24+20}" x2="320" y2="${i*24+20}"/>`).join("")}
+        </g>
+        <g stroke="#22314a" stroke-width="1" opacity="0.7">
+          ${Array.from({length:11}).map((_,i)=>`<line x1="${i*32}" y1="0" x2="${i*32}" y2="200"/>`).join("")}
+        </g>
+        <ellipse cx="${boxX+boxW/2}" cy="${boxY+boxH+6}" rx="26" ry="6" fill="#000" opacity="0.35"/>
+        <circle cx="${boxX+boxW/2}" cy="${boxY+18}" r="16" fill="#3a4a63"/>
+        <path d="M${boxX+7} ${boxY+108} q${boxW/2-7} -46 ${boxW-14} 0 l4 6 q-${boxW/2-9} 42 -${boxW-22} 0 z" fill="#3a4a63"/>
+        <rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" fill="none" stroke="#e3a64b" stroke-width="2"/>
+        ${[[boxX,boxY],[boxX+boxW,boxY],[boxX,boxY+boxH],[boxX+boxW,boxY+boxH]].map(([x,y])=>`
+          <path d="M${x-6} ${y} h6 v6" fill="none" stroke="#e3a64b" stroke-width="2.4" transform="translate(0,0)"/>
+        `).join("")}
+        <text x="${boxX}" y="${boxY-6}" font-family="IBM Plex Mono, monospace" font-size="9" fill="#e3a64b">${appearance.isEntry ? "entry" : (appearance.accepted ? "linked" : "candidate")}</text>
+      `;
+    }
     document.getElementById("frame-cam-label").textContent = `${cam.id} · ${cam.zone} · ${fmtTime(appearance.start)}–${fmtTime(appearance.end)}`;
     requestAnimationFrame(() => wrap.classList.remove("switching"));
   });
